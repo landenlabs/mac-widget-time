@@ -47,8 +47,10 @@ class DesktopWindowManager: NSObject {
             DispatchQueue.main.async {
                 let leftEdge   = win.frame.minX
                 let bottomEdge = win.frame.minY
-                // Clamp so the widget doesn't extend past the right edge of the screen
-                let maxX = NSScreen.main.map { $0.frame.maxX - size.width } ?? leftEdge
+                // Use the window's actual screen, not NSScreen.main, to avoid moving the
+                // widget off a secondary display onto the primary screen on every resize.
+                let screen = win.screen ?? NSScreen.main
+                let maxX = screen.map { $0.frame.maxX - size.width } ?? leftEdge
                 let x = min(leftEdge, maxX)
                 win.setFrame(
                     NSRect(x: x, y: bottomEdge, width: size.width, height: size.height),
@@ -63,15 +65,28 @@ class DesktopWindowManager: NSObject {
     // MARK: - Position
 
     private func placeWindow(_ win: NSWindow) {
-        guard let screen = NSScreen.main else { return }
         var x = appState.widgetX
         var y = appState.widgetY
+
         if x == 0 && y == 0 {
-            x = screen.frame.maxX - 374
-            y = screen.frame.minY + 60
+            guard let screen = NSScreen.main else { return }
+            x = screen.visibleFrame.maxX - 374
+            y = screen.visibleFrame.minY + 60
             appState.widgetX = x
             appState.widgetY = y
+        } else {
+            // Find the screen the saved position belongs to so we clamp correctly.
+            // Using NSScreen.main here would move a secondary-screen widget onto the
+            // primary screen every time the app restarts.
+            let savedOrigin = NSPoint(x: x, y: y)
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(savedOrigin) }) ?? NSScreen.main
+            if let vf = screen?.visibleFrame {
+                // Keep the origin inside the visible area (above Dock, right of left edge).
+                x = max(vf.minX, x)
+                y = max(vf.minY, y)
+            }
         }
+
         win.setFrameOrigin(NSPoint(x: x, y: y))
     }
 

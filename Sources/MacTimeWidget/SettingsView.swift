@@ -51,7 +51,10 @@ struct SettingsView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Divider()
             HStack(spacing: 0) {
-                Button { appState.addEntry() } label: {
+                Button {
+                    let e = appState.addEntry()
+                    nav = .entry(e.id)
+                } label: {
                     Image(systemName: "plus").frame(width: 26, height: 22)
                 }
                 .buttonStyle(.plain)
@@ -59,8 +62,8 @@ struct SettingsView: View {
                 if case .entry(let id) = nav {
                     Divider().frame(height: 16)
                     Button {
-                        nav = .general                              // clear selection first
-                        appState.entries.removeAll { $0.id == id }  // then remove
+                        nav = .general
+                        appState.entries = appState.entries.filter { $0.id != id }
                     } label: {
                         Image(systemName: "minus").frame(width: 26, height: 22)
                     }

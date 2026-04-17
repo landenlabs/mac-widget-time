@@ -48,8 +48,11 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(shadowEnabled, forKey: "widgetShadow")
     }
 
-    func addEntry() {
-        entries.append(ClockEntry(label: "New", timeZoneIdentifier: TimeZone.current.identifier, formatString: "HH:mm", fontSize: 32))
+    @discardableResult
+    func addEntry() -> ClockEntry {
+        let entry = ClockEntry(label: "New", timeZoneIdentifier: TimeZone.current.identifier, formatString: "HH:mm", fontSize: 32)
+        entries.append(entry)
+        return entry
     }
 
     func removeEntries(at offsets: IndexSet) {
