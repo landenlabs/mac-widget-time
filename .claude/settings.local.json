@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift build *)",
+      "Bash(echo \"Binary: $\\(swift build -c release --show-bin-path \\)/MacTimeWidget\")",
+      "Bash(chmod +x *)"
+    ]
+  }
+}
