@@ -12,11 +12,24 @@ struct DesktopClockView: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
+            if appState.isDraggable {
+                Text("drag to reposition")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.8))
+                    .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
+            }
             ForEach(appState.entries) { entry in
                 ClockEntryView(entry: entry, now: now, textColor: textColor, shadowEnabled: appState.shadowEnabled)
             }
         }
         .padding(12)
+        .overlay {
+            if appState.isDraggable {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.85),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 3]))
+            }
+        }
         .onReceive(timer) { date in
             now = date
         }

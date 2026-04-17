@@ -16,9 +16,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return false
-    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    // MARK: - Status item
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -26,36 +26,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         button.image = NSImage(systemSymbolName: "clock.fill", accessibilityDescription: "Time Widget")
 
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(.separator())
-        let launchItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        launchItem.state = launchAtLoginEnabled ? .on : .off
-        menu.addItem(launchItem)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.delegate = self
         statusItem?.menu = menu
     }
 
-    private var launchAtLoginEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "launchAtLogin") }
-        set { UserDefaults.standard.set(newValue, forKey: "launchAtLogin") }
-    }
+    // MARK: - Actions
 
-    @objc private func toggleLaunchAtLogin() {
-        launchAtLoginEnabled.toggle()
-        // Rebuild menu to reflect updated state
-        setupStatusItem()
-        setLoginItem(enabled: launchAtLoginEnabled)
-    }
-
-    private func setLoginItem(enabled: Bool) {
-        let appPath = Bundle.main.bundlePath
-        // Use AppleScript as a simple cross-version approach (no entitlements needed for SPM builds)
-        let script = enabled
-            ? "tell application \"System Events\" to make login item at end with properties {path:\"\(appPath)\", hidden:false}"
-            : "tell application \"System Events\" to delete (every login item whose path is \"\(appPath)\")"
-        var error: NSDictionary?
-        NSAppleScript(source: script)?.executeAndReturnError(&error)
+    @objc func toggleDragMode() {
+        desktopWindowManager?.toggleDragMode()
     }
 
     @objc func openSettings() {
@@ -64,7 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.desktopWindowManager?.updatePosition()
             }
             let win = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 540, height: 440),
+                contentRect: NSRect(x: 0, y: 0, width: 680, height: 520),
                 styleMask: [.titled, .closable, .resizable, .miniaturizable],
                 backing: .buffered,
                 defer: false
@@ -76,5 +54,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         settingsWindowController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        launchAtLoginEnabled.toggle()
+        setLoginItem(enabled: launchAtLoginEnabled)
+    }
+
+    private var launchAtLoginEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "launchAtLogin") }
+        set { UserDefaults.standard.set(newValue, forKey: "launchAtLogin") }
+    }
+
+    private func setLoginItem(enabled: Bool) {
+        let path = Bundle.main.bundlePath
+        let script = enabled
+            ? "tell application \"System Events\" to make login item at end with properties {path:\"\(path)\", hidden:false}"
+            : "tell application \"System Events\" to delete (every login item whose path is \"\(path)\")"
+        var err: NSDictionary?
+        NSAppleScript(source: script)?.executeAndReturnError(&err)
+    }
+}
+
+// MARK: - NSMenuDelegate
+
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        let isDragging = AppState.shared.isDraggable
+        let moveTitle = isDragging ? "Done Moving Widget" : "Move Widget…"
+        menu.addItem(NSMenuItem(title: moveTitle, action: #selector(toggleDragMode), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(.separator())
+
+        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        loginItem.state = launchAtLoginEnabled ? .on : .off
+        menu.addItem(loginItem)
+
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 }

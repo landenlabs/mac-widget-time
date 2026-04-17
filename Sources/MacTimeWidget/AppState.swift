@@ -9,6 +9,9 @@ class AppState: ObservableObject {
     @Published var widgetY: Double { didSet { savePosition() } }
     @Published var textColor: String { didSet { savePosition() } }
     @Published var shadowEnabled: Bool { didSet { savePosition() } }
+    // Runtime state — not persisted
+    @Published var isDraggable: Bool = false
+    @Published var widgetSize: CGSize = CGSize(width: 200, height: 80)
 
     private let entriesKey = "clockEntries"
     private let positionKey = "widgetPosition"

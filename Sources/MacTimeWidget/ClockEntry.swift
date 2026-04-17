@@ -1,6 +1,6 @@
 import Foundation
 
-struct ClockEntry: Identifiable, Codable {
+struct ClockEntry: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var label: String
     var timeZoneIdentifier: String
