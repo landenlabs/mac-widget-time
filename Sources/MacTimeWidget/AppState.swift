@@ -4,58 +4,77 @@ import CoreGraphics
 class AppState: ObservableObject {
     static let shared = AppState()
 
-    @Published var entries: [ClockEntry] { didSet { saveEntries() } }
-    @Published var widgetX: Double { didSet { savePosition() } }
-    @Published var widgetY: Double { didSet { savePosition() } }
-    @Published var textColor: String { didSet { savePosition() } }
-    @Published var shadowEnabled: Bool { didSet { savePosition() } }
-    // Runtime state — not persisted
+    @Published var entries: [ClockEntry] { didSet { save() } }
+    @Published var widgetX: Double       { didSet { save() } }
+    @Published var widgetY: Double       { didSet { save() } }
+    // Runtime — not persisted
     @Published var isDraggable: Bool = false
-    @Published var widgetSize: CGSize = CGSize(width: 200, height: 80)
+    @Published var widgetSize: CGSize    = CGSize(width: 200, height: 80)
 
-    private let entriesKey = "clockEntries"
-    private let positionKey = "widgetPosition"
+    // MARK: - Persistence
+
+    private struct Persisted: Codable {
+        var entries: [ClockEntry]
+        var widgetX: Double
+        var widgetY: Double
+    }
+
+    private static var fileURL: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacTimeWidget")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("settings.json")
+    }
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: "clockEntries"),
-           let decoded = try? JSONDecoder().decode([ClockEntry].self, from: data) {
-            entries = decoded
+        // Load from JSON if it exists.
+        if let data = try? Data(contentsOf: Self.fileURL),
+           let saved = try? JSONDecoder().decode(Persisted.self, from: data) {
+            entries = saved.entries
+            widgetX = saved.widgetX
+            widgetY = saved.widgetY
+            return
+        }
+
+        // Migrate from UserDefaults (previous storage) or use defaults.
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: "clockEntries"),
+           let old = try? JSONDecoder().decode([ClockEntry].self, from: data) {
+            entries = old
         } else {
             entries = [
-                ClockEntry(label: "Boston", timeZoneIdentifier: "America/New_York", formatString: "hh:mm a", fontSize: 36),
-                ClockEntry(label: "UTC", timeZoneIdentifier: "UTC", formatString: "HH:mm", fontSize: 28),
+                ClockEntry(label: "Boston", timeZoneIdentifier: "America/New_York",
+                           formatString: "hh:mm a", fontSize: 36),
+                ClockEntry(label: "UTC",    timeZoneIdentifier: "UTC",
+                           formatString: "HH:mm",   fontSize: 28),
             ]
         }
-
-        let defaults = UserDefaults.standard
-        // Default to bottom-right: will be adjusted by DesktopWindowManager if 0
         widgetX = defaults.double(forKey: "widgetX")
         widgetY = defaults.double(forKey: "widgetY")
-        textColor = defaults.string(forKey: "widgetTextColor") ?? "#FFFFFF"
-        shadowEnabled = defaults.object(forKey: "widgetShadow") == nil ? true : defaults.bool(forKey: "widgetShadow")
+        save()  // write migrated / default data to JSON
     }
 
-    func saveEntries() {
-        if let data = try? JSONEncoder().encode(entries) {
-            UserDefaults.standard.set(data, forKey: entriesKey)
-        }
-    }
+    // Use direct assignment throughout so @Published reliably fires objectWillChange.
 
-    func savePosition() {
-        UserDefaults.standard.set(widgetX, forKey: "widgetX")
-        UserDefaults.standard.set(widgetY, forKey: "widgetY")
-        UserDefaults.standard.set(textColor, forKey: "widgetTextColor")
-        UserDefaults.standard.set(shadowEnabled, forKey: "widgetShadow")
+    func save() {
+        guard let data = try? JSONEncoder().encode(
+            Persisted(entries: entries, widgetX: widgetX, widgetY: widgetY)
+        ) else { return }
+        try? data.write(to: Self.fileURL, options: .atomic)
     }
 
     @discardableResult
     func addEntry() -> ClockEntry {
-        let entry = ClockEntry(label: "New", timeZoneIdentifier: TimeZone.current.identifier, formatString: "HH:mm", fontSize: 32)
-        entries.append(entry)
+        let entry = ClockEntry(label: "New",
+                               timeZoneIdentifier: TimeZone.current.identifier,
+                               formatString: "HH:mm", fontSize: 32)
+        entries = entries + [entry]
         return entry
     }
 
     func removeEntries(at offsets: IndexSet) {
-        entries.remove(atOffsets: offsets)
+        var e = entries
+        e.remove(atOffsets: offsets)
+        entries = e
     }
 }

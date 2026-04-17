@@ -5,6 +5,7 @@ import CoreLocation
 
 private enum Nav: Hashable {
     case general
+    case about
     case entry(UUID)
 }
 
@@ -21,7 +22,6 @@ struct SettingsView: View {
             detail.frame(minWidth: 460)
         }
         .frame(minWidth: 660, minHeight: 500)
-        // If the selected entry is deleted, fall back to general panel
         .onChange(of: appState.entries) { entries in
             if case .entry(let id) = nav, !entries.contains(where: { $0.id == id }) {
                 nav = .general
@@ -30,25 +30,40 @@ struct SettingsView: View {
     }
 
     // MARK: Sidebar
+    // VStack instead of safeAreaInset so the button bar is outside the List's
+    // hit-test area — prevents the List from swallowing button clicks.
 
     private var sidebar: some View {
-        List(selection: $nav) {
-            Section("Widget") {
-                Label("Position & Appearance", systemImage: "slider.horizontal.3")
-                    .tag(Nav.general)
-            }
-            Section("Clocks") {
-                ForEach(appState.entries) { entry in
-                    Label(entry.label.isEmpty ? "(unnamed)" : entry.label,
-                          systemImage: "clock")
-                        .tag(Nav.entry(entry.id))
+        VStack(spacing: 0) {
+            List(selection: $nav) {
+                Section("Widget") {
+                    Label("Position", systemImage: "slider.horizontal.3")
+                        .tag(Nav.general)
+                    Label("About", systemImage: "info.circle")
+                        .tag(Nav.about)
                 }
-                .onDelete { appState.removeEntries(at: $0) }
+                Section("Clocks") {
+                    ForEach(appState.entries) { entry in
+                        Label {
+                            Text(entry.label.isEmpty ? "(unnamed)" : entry.label)
+                        } icon: {
+                            // Clock icon with a small colour dot in the corner.
+                            Image(systemName: "clock")
+                                .overlay(alignment: .bottomTrailing) {
+                                    Circle()
+                                        .fill(Color(hex: entry.textColor) ?? .white)
+                                        .frame(width: 7, height: 7)
+                                        .shadow(color: .black.opacity(0.4), radius: 1)
+                                }
+                        }
+                        .tag(Nav.entry(entry.id))
+                    }
+                    .onDelete { appState.removeEntries(at: $0) }
+                }
             }
-        }
-        .listStyle(.sidebar)
-        // safeAreaInset keeps buttons visible below the list without fighting for VStack space
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+            .listStyle(.sidebar)
+            .frame(maxHeight: .infinity)
+
             Divider()
             HStack(spacing: 0) {
                 Button {
@@ -57,17 +72,17 @@ struct SettingsView: View {
                 } label: {
                     Image(systemName: "plus").frame(width: 26, height: 22)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
 
                 if case .entry(let id) = nav {
                     Divider().frame(height: 16)
                     Button {
-                        nav = .general
                         appState.entries = appState.entries.filter { $0.id != id }
+                        nav = .general
                     } label: {
                         Image(systemName: "minus").frame(width: 26, height: 22)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                 }
                 Spacer()
             }
@@ -83,51 +98,45 @@ struct SettingsView: View {
     private var detail: some View {
         switch nav {
         case .general:
-            generalPanel
+            positionPanel
+        case .about:
+            AboutView()
         case .entry(let id):
             if let idx = appState.entries.firstIndex(where: { $0.id == id }) {
                 EntryEditView(entry: $appState.entries[idx])
-                    .id(id)   // force a fresh view (resets Form scroll) when selection changes
+                    .id(id)
             } else {
-                generalPanel
+                positionPanel
             }
         }
     }
 
-    // MARK: Position & Appearance panel
+    // MARK: Position panel
 
-    private var generalPanel: some View {
+    private var positionPanel: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                positionSection
-                Divider()
-                appearanceSection
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Widget Position")
+                    .font(.headline)
+
+                ScreenMapView(
+                    widgetX: $appState.widgetX,
+                    widgetY: $appState.widgetY,
+                    widgetSize: appState.widgetSize
+                ) { onPositionChanged?() }
+
+                HStack(spacing: 20) {
+                    coordField(label: "X:", value: $appState.widgetX)
+                    coordField(label: "Y:", value: $appState.widgetY)
+                }
+
+                Text("(0, 0) = screen bottom-left. Drag the blue block above to reposition.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var positionSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Widget Position")
-                .font(.headline)
-
-            ScreenMapView(
-                widgetX: $appState.widgetX,
-                widgetY: $appState.widgetY,
-                widgetSize: appState.widgetSize
-            ) { onPositionChanged?() }
-
-            HStack(spacing: 20) {
-                coordField(label: "X:", value: $appState.widgetX)
-                coordField(label: "Y:", value: $appState.widgetY)
-            }
-
-            Text("(0, 0) = screen bottom-left. Drag the blue block above to reposition.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
     }
 
     private func coordField(label: String, value: Binding<Double>) -> some View {
@@ -139,43 +148,80 @@ struct SettingsView: View {
                 .onChange(of: value.wrappedValue) { _ in onPositionChanged?() }
         }
     }
+}
 
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Appearance")
-                .font(.headline)
+// MARK: - About
 
-            HStack(spacing: 10) {
-                Text("Text Color:")
-                TextField("#FFFFFF", text: $appState.textColor)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
-                    .font(.system(.body, design: .monospaced))
-                ColorPicker("", selection: colorPickerBinding, supportsOpacity: false)
-                    .labelsHidden()
-                    .frame(width: 32, height: 26)
+struct AboutView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(spacing: 16) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.accentColor)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Mac Time Widget")
+                            .font(.title.bold())
+                        Text("Version \(appVersion)")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Description").font(.headline)
+                    Text("A lightweight desktop clock widget that shows multiple time zones directly on your desktop. Each clock entry has its own label, format, font size, colour, and shadow.")
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Details").font(.headline)
+                    infoRow("Author",    "Dennis Lang")
+                    infoRow("Built",     buildDate)
+                    infoRow("Settings",  settingsPath)
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting(
+                            [URL(fileURLWithPath: settingsPath)]
+                        )
+                    }
+                    .padding(.top, 4)
+                }
             }
-
-            Toggle("Text Shadow", isOn: $appState.shadowEnabled)
+            .padding(20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// Two-way binding between the hex string in AppState and SwiftUI Color for ColorPicker.
-    private var colorPickerBinding: Binding<Color> {
-        Binding(
-            get: {
-                Color(hex: appState.textColor) ?? .white
-            },
-            set: { color in
-                guard let ns = NSColor(color).usingColorSpace(.sRGB) else { return }
-                appState.textColor = String(
-                    format: "#%02X%02X%02X",
-                    Int((ns.redComponent   * 255).rounded()),
-                    Int((ns.greenComponent * 255).rounded()),
-                    Int((ns.blueComponent  * 255).rounded())
-                )
-            }
-        )
+    private var appVersion: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        if let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String { return "\(v) (\(b))" }
+        return v
+    }
+
+    private var buildDate: String {
+        guard let url = Bundle.main.executableURL,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let date = attrs[.modificationDate] as? Date else { return "—" }
+        let fmt = DateFormatter()
+        fmt.dateStyle = .medium
+        fmt.timeStyle = .short
+        return fmt.string(from: date)
+    }
+
+    private var settingsPath: String {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacTimeWidget")
+        return dir.appendingPathComponent("settings.json").path
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            Text(label).foregroundColor(.secondary).frame(width: 72, alignment: .leading)
+            Text(value).textSelection(.enabled)
+        }
     }
 }
 
@@ -187,7 +233,7 @@ struct ScreenMapView: View {
     var widgetSize: CGSize
     var onChanged: () -> Void
 
-    private let mapSize = CGSize(width: 360, height: 202)   // 16:9, fills panel nicely
+    private let mapSize = CGSize(width: 360, height: 202)
 
     private var screen: CGRect {
         guard let f = NSScreen.main?.frame else { return CGRect(x: 0, y: 0, width: 2560, height: 1440) }
@@ -210,10 +256,7 @@ struct ScreenMapView: View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.black.opacity(0.55))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.15), lineWidth: 1))
 
             RoundedRectangle(cornerRadius: 3)
                 .fill(Color.accentColor.opacity(0.85))
@@ -277,15 +320,46 @@ struct EntryEditView: View {
                     }
                 }
 
+                // Custom scroll list instead of Picker — avoids the parent Form
+                // scrolling to the selected row on appear, which caused blank-space jumps.
                 LabeledContent("Time Zone") {
                     VStack(alignment: .leading, spacing: 4) {
                         TextField("Filter…", text: $tzSearch)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 260)
-                        Picker("", selection: $entry.timeZoneIdentifier) {
-                            ForEach(filteredTZs, id: \.self) { tz in Text(tz).tag(tz) }
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 0) {
+                                    ForEach(filteredTZs, id: \.self) { tz in
+                                        Text(tz)
+                                            .font(.system(size: 12))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(
+                                                tz == entry.timeZoneIdentifier
+                                                    ? Color.accentColor.opacity(0.2) : Color.clear
+                                            )
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { entry.timeZoneIdentifier = tz }
+                                            .id(tz)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: 260, maxHeight: 110)
+                            .background(Color(NSColor.textBackgroundColor))
+                            .cornerRadius(4)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color(NSColor.separatorColor), lineWidth: 0.5)
+                            )
+                            .onAppear {
+                                proxy.scrollTo(entry.timeZoneIdentifier, anchor: .center)
+                            }
+                            .onChange(of: entry.timeZoneIdentifier) { id in
+                                proxy.scrollTo(id, anchor: .center)
+                            }
                         }
-                        .frame(maxWidth: 260, maxHeight: 110)
                         Text("Current: \(entry.timeZoneIdentifier)")
                             .font(.caption).foregroundColor(.secondary)
                     }
@@ -305,13 +379,36 @@ struct EntryEditView: View {
                         .frame(maxWidth: 200)
                 }
 
+                LabeledContent("Text Color") {
+                    HStack(spacing: 10) {
+                        TextField("#FFFFFF", text: $entry.textColor)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                            .font(.system(.body, design: .monospaced))
+                        ColorPicker("", selection: colorPickerBinding, supportsOpacity: false)
+                            .labelsHidden()
+                            .frame(width: 32, height: 26)
+                    }
+                }
+
+                LabeledContent("Text Shadow") {
+                    Toggle("", isOn: $entry.shadowEnabled)
+                        .labelsHidden()
+                }
+
                 LabeledContent("Preview") {
                     Text(previewTime)
                         .font(.system(size: min(entry.fontSize, 28), weight: .bold, design: .monospaced))
+                        .foregroundColor(Color(hex: entry.textColor) ?? .white)
+                        .shadow(color: entry.shadowEnabled ? .black.opacity(0.9) : .clear, radius: 3, x: 1, y: 1)
+                        .padding(8)
+                        .background(Color.black.opacity(0.85))
+                        .cornerRadius(6)
                 }
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -339,6 +436,21 @@ struct EntryEditView: View {
             Label(msg, systemImage: "exclamationmark.triangle")
                 .font(.caption).foregroundColor(.red)
         }
+    }
+
+    private var colorPickerBinding: Binding<Color> {
+        Binding(
+            get: { Color(hex: entry.textColor) ?? .white },
+            set: { color in
+                guard let ns = NSColor(color).usingColorSpace(.sRGB) else { return }
+                entry.textColor = String(
+                    format: "#%02X%02X%02X",
+                    Int((ns.redComponent   * 255).rounded()),
+                    Int((ns.greenComponent * 255).rounded()),
+                    Int((ns.blueComponent  * 255).rounded())
+                )
+            }
+        )
     }
 
     private func findTimeZone() {

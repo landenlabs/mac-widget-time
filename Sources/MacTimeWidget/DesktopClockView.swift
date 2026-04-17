@@ -6,10 +6,6 @@ struct DesktopClockView: View {
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    var textColor: Color {
-        Color(hex: appState.textColor) ?? .white
-    }
-
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
             if appState.isDraggable {
@@ -19,7 +15,7 @@ struct DesktopClockView: View {
                     .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
             }
             ForEach(appState.entries) { entry in
-                ClockEntryView(entry: entry, now: now, textColor: textColor, shadowEnabled: appState.shadowEnabled)
+                ClockEntryView(entry: entry, now: now)
             }
         }
         .padding(12)
@@ -39,8 +35,8 @@ struct DesktopClockView: View {
 struct ClockEntryView: View {
     let entry: ClockEntry
     let now: Date
-    let textColor: Color
-    let shadowEnabled: Bool
+
+    private var color: Color { Color(hex: entry.textColor) ?? .white }
 
     var formattedTime: String {
         let formatter = DateFormatter()
@@ -54,13 +50,13 @@ struct ClockEntryView: View {
             if !entry.label.isEmpty {
                 Text(entry.label)
                     .font(.system(size: max(entry.fontSize * 0.38, 11), weight: .semibold, design: .monospaced))
-                    .foregroundColor(textColor.opacity(0.75))
-                    .shadow(color: shadowEnabled ? .black.opacity(0.8) : .clear, radius: 2, x: 1, y: 1)
+                    .foregroundColor(color.opacity(0.75))
+                    .shadow(color: entry.shadowEnabled ? .black.opacity(0.8) : .clear, radius: 2, x: 1, y: 1)
             }
             Text(formattedTime)
                 .font(.system(size: entry.fontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(textColor)
-                .shadow(color: shadowEnabled ? .black.opacity(0.9) : .clear, radius: 3, x: 1, y: 1)
+                .foregroundColor(color)
+                .shadow(color: entry.shadowEnabled ? .black.opacity(0.9) : .clear, radius: 3, x: 1, y: 1)
         }
     }
 }
@@ -73,9 +69,14 @@ extension Color {
         let r, g, b, a: Double
         switch hex.count {
         case 6:
-            (r, g, b, a) = (Double((int >> 16) & 0xFF) / 255, Double((int >> 8) & 0xFF) / 255, Double(int & 0xFF) / 255, 1)
+            (r, g, b, a) = (Double((int >> 16) & 0xFF) / 255,
+                            Double((int >> 8)  & 0xFF) / 255,
+                            Double( int        & 0xFF) / 255, 1)
         case 8:
-            (r, g, b, a) = (Double((int >> 24) & 0xFF) / 255, Double((int >> 16) & 0xFF) / 255, Double((int >> 8) & 0xFF) / 255, Double(int & 0xFF) / 255)
+            (r, g, b, a) = (Double((int >> 24) & 0xFF) / 255,
+                            Double((int >> 16) & 0xFF) / 255,
+                            Double((int >> 8)  & 0xFF) / 255,
+                            Double( int        & 0xFF) / 255)
         default:
             return nil
         }
