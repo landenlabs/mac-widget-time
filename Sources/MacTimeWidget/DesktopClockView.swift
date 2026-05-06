@@ -7,7 +7,7 @@ struct DesktopClockView: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             if appState.isDraggable {
                 Text("drag to reposition")
                     .font(.system(size: 10, weight: .semibold))
@@ -46,7 +46,7 @@ struct ClockEntryView: View {
     }
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 1) {
+        VStack(alignment: entry.rowAlignment.horizontal, spacing: 1) {
             if !entry.label.isEmpty {
                 Text(entry.label)
                     .font(.system(size: max(entry.fontSize * 0.38, 11), weight: .semibold, design: .monospaced))
@@ -58,6 +58,7 @@ struct ClockEntryView: View {
                 .foregroundColor(color)
                 .shadow(color: entry.shadowEnabled ? .black.opacity(0.9) : .clear, radius: 3, x: 1, y: 1)
         }
+        .frame(maxWidth: .infinity, alignment: entry.rowAlignment.frameAlignment)
     }
 }
 

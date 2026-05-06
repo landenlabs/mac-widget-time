@@ -396,6 +396,17 @@ struct EntryEditView: View {
                         .labelsHidden()
                 }
 
+                LabeledContent("Alignment") {
+                    Picker("", selection: $entry.rowAlignment) {
+                        ForEach(RowAlignment.allCases, id: \.self) { alignment in
+                            Text(alignment.label).tag(alignment)
+                        }
+                    }
+                    .pickerStyle(.radioGroup)
+                    .horizontalRadioGroupLayout()
+                    .labelsHidden()
+                }
+
                 LabeledContent("Preview") {
                     Text(previewTime)
                         .font(.system(size: min(entry.fontSize, 28), weight: .bold, design: .monospaced))
