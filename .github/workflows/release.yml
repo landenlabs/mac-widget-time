@@ -1,0 +1,87 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build arm64
+        run: swift build -c release --arch arm64
+
+      - name: Build x86_64
+        run: swift build -c release --arch x86_64
+
+      - name: Create universal binary
+        run: |
+          lipo -create \
+            .build/arm64-apple-macosx/release/MacTimeWidget \
+            .build/x86_64-apple-macosx/release/MacTimeWidget \
+            -output MacTimeWidget-universal
+
+      - name: Assemble app bundle
+        run: |
+          APP=MacTimeWidget.app
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
+
+          cp MacTimeWidget-universal "$APP/Contents/MacOS/MacTimeWidget"
+
+          # Copy SPM resource bundle if present (contains .gif and other assets)
+          BUNDLE=".build/arm64-apple-macosx/release/MacTimeWidget_MacTimeWidget.bundle"
+          if [ -d "$BUNDLE" ]; then
+            cp -r "$BUNDLE" "$APP/Contents/Resources/"
+          fi
+
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          cat > "$APP/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>MacTimeWidget</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.landenlabs.mactimewidget</string>
+            <key>CFBundleName</key>
+            <string>MacTimeWidget</string>
+            <key>CFBundleDisplayName</key>
+            <string>Mac Time Widget</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>$VERSION</string>
+            <key>CFBundleVersion</key>
+            <string>$VERSION</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>13.0</string>
+            <key>NSPrincipalClass</key>
+            <string>NSApplication</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Ad-hoc sign (allows local testing without Gatekeeper prompt on same machine)
+        run: codesign --force --deep --sign - MacTimeWidget.app
+
+      - name: Zip app bundle
+        run: ditto -c -k --sequesterRsrc --keepParent MacTimeWidget.app MacTimeWidget-${{ github.ref_name }}.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MacTimeWidget-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
