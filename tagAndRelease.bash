@@ -4,9 +4,11 @@
 #
 # What it does:
 #   1. Updates Sources/MacTimeWidget/Version.swift with the new version
-#   2. Commits all pending changes with the provided message
-#   3. Creates an annotated git tag
-#   4. Pushes the commit and tag — the tag push triggers the GitHub Actions release build
+#   2. Updates the top-level VERSION file with the new version
+#   3. Updates the version and date in README.md header table
+#   4. Commits all pending changes with the provided message
+#   5. Creates an annotated git tag
+#   6. Pushes the commit and tag — the tag push triggers the GitHub Actions release build
 
 set -euo pipefail
 
@@ -73,8 +75,20 @@ let AppVersion = "$BARE"
 EOF
 echo "Updated $VERSION_FILE → $BARE"
 
+# ---------- update VERSION ----------
+PLAIN_VERSION_FILE="$SCRIPT_DIR/VERSION"
+printf '%s\n' "$BARE" > "$PLAIN_VERSION_FILE"
+echo "Updated $PLAIN_VERSION_FILE → $BARE"
+
+# ---------- update README.md version and date ----------
+README="$SCRIPT_DIR/README.md"
+TODAY="$(date '+%-d-%b-%Y')"
+sed -i '' "s|<!-- VERSION -->v[^ ]*|<!-- VERSION -->v${BARE}|" "$README"
+sed -i '' "s|<!-- DATE -->[^<]*|<!-- DATE -->${TODAY}|" "$README"
+echo "Updated $README → v${BARE}, ${TODAY}"
+
 # ---------- stage, commit, tag, push ----------
-git -C "$SCRIPT_DIR" add "$VERSION_FILE"
+git -C "$SCRIPT_DIR" add "$VERSION_FILE" "$PLAIN_VERSION_FILE" "$README"
 
 # Stage any other tracked changes the caller may have pending
 git -C "$SCRIPT_DIR" add -u

@@ -5,10 +5,16 @@ on:
     tags:
       - 'v*'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build macOS App
     runs-on: macos-latest
+    permissions:
+      contents: write
+      pull-requests: read
 
     steps:
       - name: Checkout
