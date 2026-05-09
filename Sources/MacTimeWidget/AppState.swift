@@ -4,16 +4,17 @@ import CoreGraphics
 class AppState: ObservableObject {
     static let shared = AppState()
 
-    @Published var entries: [ClockEntry] { didSet { save() } }
-    @Published var widgetX: Double       { didSet { save() } }
-    @Published var widgetY: Double       { didSet { save() } }
-    // Runtime — not persisted
-    @Published var isDraggable: Bool = false
-    @Published var widgetSize: CGSize    = CGSize(width: 200, height: 80)
+    @Published var widgets: [WidgetConfig] { didSet { save() } }
+    // Runtime — not persisted. Updated by each DesktopWindowManager for the ScreenMapView.
+    @Published var widgetSizes: [UUID: CGSize] = [:]
 
     // MARK: - Persistence
 
     private struct Persisted: Codable {
+        var widgets: [WidgetConfig]
+    }
+
+    private struct LegacyPersisted: Codable {
         var entries: [ClockEntry]
         var widgetX: Double
         var widgetY: Double
@@ -27,17 +28,26 @@ class AppState: ObservableObject {
     }
 
     init() {
-        // Load from JSON if it exists.
-        if let data = try? Data(contentsOf: Self.fileURL),
-           let saved = try? JSONDecoder().decode(Persisted.self, from: data) {
-            entries = saved.entries
-            widgetX = saved.widgetX
-            widgetY = saved.widgetY
-            return
+        if let data = try? Data(contentsOf: Self.fileURL) {
+            // Try new multi-widget format first.
+            if let saved = try? JSONDecoder().decode(Persisted.self, from: data), !saved.widgets.isEmpty {
+                widgets = saved.widgets
+                return
+            }
+            // Migrate from single-widget JSON format.
+            if let legacy = try? JSONDecoder().decode(LegacyPersisted.self, from: data) {
+                var w = WidgetConfig(name: "Widget 1", entries: legacy.entries,
+                                     widgetX: legacy.widgetX, widgetY: legacy.widgetY)
+                w.screenPositions[ScreenFingerprint.current] = ScreenPosition(x: legacy.widgetX, y: legacy.widgetY)
+                widgets = [w]
+                save()
+                return
+            }
         }
 
-        // Migrate from UserDefaults (previous storage) or use defaults.
+        // Migrate from UserDefaults (pre-JSON storage) or use hardcoded defaults.
         let defaults = UserDefaults.standard
+        let entries: [ClockEntry]
         if let data = defaults.data(forKey: "clockEntries"),
            let old = try? JSONDecoder().decode([ClockEntry].self, from: data) {
             entries = old
@@ -49,32 +59,69 @@ class AppState: ObservableObject {
                            formatString: "HH:mm",   fontSize: 28),
             ]
         }
-        widgetX = defaults.double(forKey: "widgetX")
-        widgetY = defaults.double(forKey: "widgetY")
-        save()  // write migrated / default data to JSON
+        let x = defaults.double(forKey: "widgetX")
+        let y = defaults.double(forKey: "widgetY")
+        var w = WidgetConfig(name: "Widget 1", entries: entries, widgetX: x, widgetY: y)
+        if x != 0 || y != 0 {
+            w.screenPositions[ScreenFingerprint.current] = ScreenPosition(x: x, y: y)
+        }
+        widgets = [w]
+        save()
     }
 
-    // Use direct assignment throughout so @Published reliably fires objectWillChange.
-
     func save() {
-        guard let data = try? JSONEncoder().encode(
-            Persisted(entries: entries, widgetX: widgetX, widgetY: widgetY)
-        ) else { return }
+        guard let data = try? JSONEncoder().encode(Persisted(widgets: widgets)) else { return }
         try? data.write(to: Self.fileURL, options: .atomic)
     }
 
+    // MARK: - Widget management
+
     @discardableResult
-    func addEntry() -> ClockEntry {
+    func addWidget() -> WidgetConfig {
+        let w = WidgetConfig(
+            name: "Widget \(widgets.count + 1)",
+            entries: [ClockEntry(label: "Local",
+                                 timeZoneIdentifier: TimeZone.current.identifier,
+                                 formatString: "HH:mm", fontSize: 32)]
+        )
+        widgets = widgets + [w]
+        return w
+    }
+
+    func removeWidget(id: UUID) {
+        guard widgets.count > 1 else { return }
+        widgets = widgets.filter { $0.id != id }
+    }
+
+    // MARK: - Entry management
+
+    @discardableResult
+    func addEntry(to widgetID: UUID) -> ClockEntry? {
+        guard let idx = widgets.firstIndex(where: { $0.id == widgetID }) else { return nil }
         let entry = ClockEntry(label: "New",
                                timeZoneIdentifier: TimeZone.current.identifier,
                                formatString: "HH:mm", fontSize: 32)
-        entries = entries + [entry]
+        var updated = widgets
+        updated[idx].entries.append(entry)
+        widgets = updated
         return entry
     }
 
-    func removeEntries(at offsets: IndexSet) {
-        var e = entries
-        e.remove(atOffsets: offsets)
-        entries = e
+    func removeEntries(from widgetID: UUID, at offsets: IndexSet) {
+        guard let idx = widgets.firstIndex(where: { $0.id == widgetID }) else { return }
+        var updated = widgets
+        updated[idx].entries.remove(atOffsets: offsets)
+        widgets = updated
+    }
+
+    // MARK: - Position
+
+    func updatePosition(for widgetID: UUID, x: Double, y: Double) {
+        guard let idx = widgets.firstIndex(where: { $0.id == widgetID }) else { return }
+        var updated = widgets
+        updated[idx].widgetX = x
+        updated[idx].widgetY = y
+        updated[idx].screenPositions[ScreenFingerprint.current] = ScreenPosition(x: x, y: y)
+        widgets = updated
     }
 }

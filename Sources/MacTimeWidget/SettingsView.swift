@@ -4,8 +4,8 @@ import CoreLocation
 // MARK: - Navigation
 
 private enum Nav: Hashable {
-    case general
     case about
+    case widgetGeneral(UUID)
     case entry(UUID)
 }
 
@@ -13,52 +13,64 @@ private enum Nav: Hashable {
 
 struct SettingsView: View {
     @ObservedObject var appState: AppState
-    @State private var nav: Nav = .general
+    @State private var nav: Nav
     var onPositionChanged: (() -> Void)?
+
+    init(appState: AppState, onPositionChanged: (() -> Void)? = nil) {
+        self.appState = appState
+        self.onPositionChanged = onPositionChanged
+        _nav = State(initialValue: appState.widgets.first.map { .widgetGeneral($0.id) } ?? .about)
+    }
 
     var body: some View {
         HSplitView {
-            sidebar.frame(minWidth: 170, maxWidth: 210)
-            detail.frame(minWidth: 460)
+            sidebar.frame(minWidth: 190, maxWidth: 230)
+            detail.frame(minWidth: 480)
         }
-        .frame(minWidth: 660, minHeight: 500)
-        .onChange(of: appState.entries) { entries in
-            if case .entry(let id) = nav, !entries.contains(where: { $0.id == id }) {
-                nav = .general
+        .frame(minWidth: 700, minHeight: 520)
+        .onChange(of: appState.widgets) { widgets in
+            switch nav {
+            case .widgetGeneral(let id):
+                if !widgets.contains(where: { $0.id == id }) {
+                    nav = widgets.first.map { .widgetGeneral($0.id) } ?? .about
+                }
+            case .entry(let id):
+                if !widgets.flatMap(\.entries).contains(where: { $0.id == id }) {
+                    nav = widgets.first.map { .widgetGeneral($0.id) } ?? .about
+                }
+            case .about:
+                break
             }
         }
     }
 
     // MARK: Sidebar
-    // VStack instead of safeAreaInset so the button bar is outside the List's
-    // hit-test area — prevents the List from swallowing button clicks.
 
     private var sidebar: some View {
         VStack(spacing: 0) {
             List(selection: $nav) {
-                Section("Widget") {
-                    Label("Position", systemImage: "slider.horizontal.3")
-                        .tag(Nav.general)
-                    Label("About", systemImage: "info.circle")
-                        .tag(Nav.about)
-                }
-                Section("Clocks") {
-                    ForEach(appState.entries) { entry in
-                        Label {
-                            Text(entry.label.isEmpty ? "(unnamed)" : entry.label)
-                        } icon: {
-                            // Clock icon with a small colour dot in the corner.
-                            Image(systemName: "clock")
-                                .overlay(alignment: .bottomTrailing) {
-                                    Circle()
-                                        .fill(Color(hex: entry.textColor) ?? .white)
-                                        .frame(width: 7, height: 7)
-                                        .shadow(color: .black.opacity(0.4), radius: 1)
-                                }
+                Label("About", systemImage: "info.circle").tag(Nav.about)
+
+                ForEach(appState.widgets) { widget in
+                    Section(widget.name) {
+                        Label("Settings", systemImage: "slider.horizontal.3")
+                            .tag(Nav.widgetGeneral(widget.id))
+                        ForEach(widget.entries) { entry in
+                            Label {
+                                Text(entry.label.isEmpty ? "(unnamed)" : entry.label)
+                            } icon: {
+                                Image(systemName: "clock")
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Circle()
+                                            .fill(Color(hex: entry.textColor) ?? .white)
+                                            .frame(width: 7, height: 7)
+                                            .shadow(color: .black.opacity(0.4), radius: 1)
+                                    }
+                            }
+                            .tag(Nav.entry(entry.id))
                         }
-                        .tag(Nav.entry(entry.id))
+                        .onDelete { appState.removeEntries(from: widget.id, at: $0) }
                     }
-                    .onDelete { appState.removeEntries(at: $0) }
                 }
             }
             .listStyle(.sidebar)
@@ -66,25 +78,36 @@ struct SettingsView: View {
 
             Divider()
             HStack(spacing: 0) {
-                Button {
-                    let e = appState.addEntry()
-                    nav = .entry(e.id)
-                } label: {
+                Button { addClock() } label: {
                     Image(systemName: "plus").frame(width: 26, height: 22)
                 }
                 .buttonStyle(.borderless)
+                .help("Add clock to this widget")
 
-                if case .entry(let id) = nav {
+                if canRemoveFocused {
                     Divider().frame(height: 16)
-                    Button {
-                        appState.entries = appState.entries.filter { $0.id != id }
-                        nav = .general
-                    } label: {
+                    Button { removeFocused() } label: {
                         Image(systemName: "minus").frame(width: 26, height: 22)
                     }
                     .buttonStyle(.borderless)
                 }
+
                 Spacer()
+
+                Divider().frame(height: 16)
+                Button {
+                    let w = appState.addWidget()
+                    nav = .widgetGeneral(w.id)
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "plus")
+                        Text("Widget").font(.system(size: 11))
+                    }
+                    .frame(height: 22)
+                    .padding(.horizontal, 6)
+                }
+                .buttonStyle(.borderless)
+                .help("Add new widget")
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
@@ -97,37 +120,121 @@ struct SettingsView: View {
     @ViewBuilder
     private var detail: some View {
         switch nav {
-        case .general:
-            positionPanel
         case .about:
             AboutView()
+        case .widgetGeneral(let id):
+            if let idx = appState.widgets.firstIndex(where: { $0.id == id }) {
+                WidgetGeneralView(
+                    appState: appState,
+                    widget: $appState.widgets[idx],
+                    onPositionChanged: onPositionChanged
+                )
+                .id(id)
+            }
         case .entry(let id):
-            if let idx = appState.entries.firstIndex(where: { $0.id == id }) {
-                EntryEditView(entry: $appState.entries[idx])
+            if let (wi, ei) = findEntry(id: id) {
+                EntryEditView(entry: $appState.widgets[wi].entries[ei])
                     .id(id)
-            } else {
-                positionPanel
             }
         }
     }
 
-    // MARK: Position panel
+    // MARK: Helpers
 
-    private var positionPanel: some View {
+    private var canRemoveFocused: Bool {
+        switch nav {
+        case .widgetGeneral(let id):
+            return appState.widgets.count > 1 && appState.widgets.contains(where: { $0.id == id })
+        case .entry(let id):
+            return appState.widgets.flatMap(\.entries).contains(where: { $0.id == id })
+        case .about:
+            return false
+        }
+    }
+
+    private func addClock() {
+        let widgetID: UUID
+        switch nav {
+        case .widgetGeneral(let id):
+            widgetID = id
+        case .entry(let entryID):
+            widgetID = appState.widgets.first(where: { $0.entries.contains(where: { $0.id == entryID }) })?.id
+                ?? appState.widgets[0].id
+        case .about:
+            widgetID = appState.widgets[0].id
+        }
+        if let entry = appState.addEntry(to: widgetID) {
+            nav = .entry(entry.id)
+        }
+    }
+
+    private func removeFocused() {
+        switch nav {
+        case .widgetGeneral(let id):
+            guard appState.widgets.count > 1 else { return }
+            appState.removeWidget(id: id)
+        case .entry(let entryID):
+            guard let widget = appState.widgets.first(where: { $0.entries.contains(where: { $0.id == entryID }) }),
+                  let ei = widget.entries.firstIndex(where: { $0.id == entryID }) else { return }
+            appState.removeEntries(from: widget.id, at: IndexSet([ei]))
+            nav = .widgetGeneral(widget.id)
+        case .about:
+            break
+        }
+    }
+
+    private func findEntry(id: UUID) -> (Int, Int)? {
+        for (wi, widget) in appState.widgets.enumerated() {
+            if let ei = widget.entries.firstIndex(where: { $0.id == id }) {
+                return (wi, ei)
+            }
+        }
+        return nil
+    }
+}
+
+// MARK: - Widget General Panel
+
+struct WidgetGeneralView: View {
+    @ObservedObject var appState: AppState
+    @Binding var widget: WidgetConfig
+    var onPositionChanged: (() -> Void)?
+
+    var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Widget Position")
-                    .font(.headline)
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Widget").font(.headline)
+
+                Form {
+                    LabeledContent("Name") {
+                        TextField("Widget name", text: $widget.name)
+                            .frame(maxWidth: 200)
+                    }
+                    LabeledContent("Orientation") {
+                        Picker("", selection: $widget.orientation) {
+                            ForEach(WidgetOrientation.allCases, id: \.self) { o in
+                                Text(o.label).tag(o)
+                            }
+                        }
+                        .pickerStyle(.radioGroup)
+                        .horizontalRadioGroupLayout()
+                        .labelsHidden()
+                    }
+                }
+
+                Divider()
+
+                Text("Position").font(.headline)
 
                 ScreenMapView(
-                    widgetX: $appState.widgetX,
-                    widgetY: $appState.widgetY,
-                    widgetSize: appState.widgetSize
+                    widgetX: posXBinding,
+                    widgetY: posYBinding,
+                    widgetSize: appState.widgetSizes[widget.id] ?? CGSize(width: 200, height: 80)
                 ) { onPositionChanged?() }
 
                 HStack(spacing: 20) {
-                    coordField(label: "X:", value: $appState.widgetX)
-                    coordField(label: "Y:", value: $appState.widgetY)
+                    coordField(label: "X:", value: posXBinding)
+                    coordField(label: "Y:", value: posYBinding)
                 }
 
                 Text("(0, 0) = screen bottom-left. Drag the blue block above to reposition.")
@@ -137,6 +244,26 @@ struct SettingsView: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var posXBinding: Binding<Double> {
+        Binding(
+            get: { widget.positionX },
+            set: { newX in
+                widget.widgetX = newX
+                widget.screenPositions[ScreenFingerprint.current] = ScreenPosition(x: newX, y: widget.positionY)
+            }
+        )
+    }
+
+    private var posYBinding: Binding<Double> {
+        Binding(
+            get: { widget.positionY },
+            set: { newY in
+                widget.widgetY = newY
+                widget.screenPositions[ScreenFingerprint.current] = ScreenPosition(x: widget.positionX, y: newY)
+            }
+        )
     }
 
     private func coordField(label: String, value: Binding<Double>) -> some View {
@@ -150,12 +277,91 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Animated GIF view (plays once, stops on last frame)
+
+struct AnimatedGIFView: NSViewRepresentable {
+    let url: URL?
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSImageView {
+        let v = NSImageView()
+        v.imageScaling = .scaleProportionallyDown
+        v.animates = false
+        if let url { context.coordinator.load(url: url, into: v) }
+        return v
+    }
+
+    func updateNSView(_ v: NSImageView, context: Context) {}
+
+    class Coordinator {
+        private var timer: Timer?
+        private var frames: [(image: NSImage, duration: TimeInterval)] = []
+        private var frameIndex = 0
+        private weak var imageView: NSImageView?
+
+        func load(url: URL, into imageView: NSImageView) {
+            self.imageView = imageView
+            guard let data = try? Data(contentsOf: url) else { return }
+
+            // Pre-extract every frame as an independent NSImage via CGImage so each
+            // is a true snapshot — mutating NSBitmapImageRep.currentFrame in-place
+            // doesn't reliably refresh an NSImageView without this copy step.
+            guard let source = NSImage(data: data),
+                  let rep = source.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
+                  let frameCount = rep.value(forProperty: .frameCount) as? Int,
+                  frameCount > 1
+            else {
+                imageView.image = NSImage(data: data)
+                return
+            }
+
+            frames = (0..<frameCount).compactMap { i in
+                rep.setProperty(.currentFrame, withValue: NSNumber(value: i))
+                let duration = (rep.value(forProperty: .currentFrameDuration) as? TimeInterval) ?? 0.1
+                guard let cg = rep.cgImage else { return nil }
+                return (NSImage(cgImage: cg, size: rep.size), duration)
+            }
+
+            frameIndex = 0
+            show(frameIndex)
+            scheduleNext()
+        }
+
+        private func show(_ index: Int) {
+            imageView?.image = frames[index].image
+        }
+
+        private func scheduleNext() {
+            let delay = frames[frameIndex].duration
+            timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                let next = self.frameIndex + 1
+                guard next < self.frames.count else { return }  // stop — stay on last frame
+                self.frameIndex = next
+                self.show(next)
+                self.scheduleNext()
+            }
+        }
+
+        deinit { timer?.invalidate() }
+    }
+}
+
 // MARK: - About
 
 struct AboutView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+
+                if let gifURL = Bundle.module.url(forResource: "landen_labs_about", withExtension: "gif") {
+                    AnimatedGIFView(url: gifURL)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 200)
+                }
+
                 HStack(spacing: 16) {
                     Image(systemName: "clock.fill")
                         .font(.system(size: 48))
@@ -172,7 +378,7 @@ struct AboutView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Description").font(.headline)
-                    Text("A lightweight desktop clock widget that shows multiple time zones directly on your desktop. Each clock entry has its own label, format, font size, colour, and shadow.")
+                    Text("A lightweight desktop clock widget that shows multiple time zones directly on your desktop. Supports multiple independent widgets, each with its own clocks, colors, orientation, and per-screen position.")
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -188,6 +394,20 @@ struct AboutView: View {
                         )
                     }
                     .padding(.top, 4)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Created by LanDen Labs (2026)")
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Text("GitHub:")
+                            .foregroundColor(.secondary)
+                        Link("https://github.com/landenlabs/mac-widget-time",
+                             destination: URL(string: "https://github.com/landenlabs/mac-widget-time")!)
+                        .font(.system(.body, design: .monospaced))
+                    }
                 }
             }
             .padding(20)
@@ -320,8 +540,6 @@ struct EntryEditView: View {
                     }
                 }
 
-                // Custom scroll list instead of Picker — avoids the parent Form
-                // scrolling to the selected row on appear, which caused blank-space jumps.
                 LabeledContent("Time Zone") {
                     VStack(alignment: .leading, spacing: 4) {
                         TextField("Filter…", text: $tzSearch)

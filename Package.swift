@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MacTimeWidget",
-            path: "Sources/MacTimeWidget"
+            path: "Sources/MacTimeWidget",
+            resources: [.process("Resources")]
         )
     ]
 )

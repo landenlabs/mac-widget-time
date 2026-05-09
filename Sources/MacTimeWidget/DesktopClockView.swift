@@ -2,32 +2,53 @@ import SwiftUI
 
 struct DesktopClockView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject var windowManager: DesktopWindowManager
+    let widgetID: UUID
     @State private var now = Date()
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    private var config: WidgetConfig? { appState.widgets.first { $0.id == widgetID } }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if appState.isDraggable {
-                Text("drag to reposition")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.8))
-                    .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
-            }
-            ForEach(appState.entries) { entry in
-                ClockEntryView(entry: entry, now: now)
-            }
-        }
-        .padding(12)
-        .overlay {
-            if appState.isDraggable {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.85),
-                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 3]))
+        Group {
+            if let config {
+                entryStack(config: config)
+                    .padding(12)
+                    .overlay {
+                        if windowManager.isDragging {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.85),
+                                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 3]))
+                        }
+                    }
             }
         }
-        .onReceive(timer) { date in
-            now = date
+        .onReceive(timer) { now = $0 }
+    }
+
+    @ViewBuilder
+    private func entryStack(config: WidgetConfig) -> some View {
+        switch config.orientation {
+        case .vertical:
+            VStack(alignment: .leading, spacing: 6) {
+                dragHint
+                ForEach(config.entries) { ClockEntryView(entry: $0, now: now) }
+            }
+        case .horizontal:
+            HStack(alignment: .top, spacing: 16) {
+                dragHint
+                ForEach(config.entries) { ClockEntryView(entry: $0, now: now) }
+            }
+        }
+    }
+
+    @ViewBuilder private var dragHint: some View {
+        if windowManager.isDragging {
+            Text("drag to reposition")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.8))
+                .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
         }
     }
 }
