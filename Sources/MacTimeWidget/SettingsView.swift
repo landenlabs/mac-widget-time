@@ -133,8 +133,11 @@ struct SettingsView: View {
             }
         case .entry(let id):
             if let (wi, ei) = findEntry(id: id) {
-                EntryEditView(entry: $appState.widgets[wi].entries[ei])
-                    .id(id)
+                EntryEditView(
+                    entry: $appState.widgets[wi].entries[ei],
+                    orientation: appState.widgets[wi].orientation
+                )
+                .id(id)
             }
         }
     }
@@ -367,7 +370,7 @@ struct AboutView: View {
                         .font(.system(size: 48))
                         .foregroundColor(.accentColor)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Mac Time Widget")
+                        Text("Mac Time Widget - LanDen Labs (2026)")
                             .font(.title.bold())
                         Text("Version \(appVersion)")
                             .foregroundColor(.secondary)
@@ -504,6 +507,7 @@ struct ScreenMapView: View {
 
 struct EntryEditView: View {
     @Binding var entry: ClockEntry
+    let orientation: WidgetOrientation
     @State private var tzSearch = ""
     @State private var cityQuery = ""
     @State private var geoStatus: GeoStatus = .idle
@@ -616,7 +620,7 @@ struct EntryEditView: View {
 
                 LabeledContent("Alignment") {
                     Picker("", selection: $entry.rowAlignment) {
-                        ForEach(RowAlignment.allCases, id: \.self) { alignment in
+                        ForEach(RowAlignment.choices(for: orientation), id: \.self) { alignment in
                             Text(alignment.label).tag(alignment)
                         }
                     }

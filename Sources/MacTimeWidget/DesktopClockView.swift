@@ -1,5 +1,12 @@
 import SwiftUI
 
+private extension VerticalAlignment {
+    private enum RowVAlignmentKey: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[.top] }
+    }
+    static let rowVAlignment = VerticalAlignment(RowVAlignmentKey.self)
+}
+
 struct DesktopClockView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var windowManager: DesktopWindowManager
@@ -33,12 +40,22 @@ struct DesktopClockView: View {
         case .vertical:
             VStack(alignment: .leading, spacing: 6) {
                 dragHint
-                ForEach(config.entries) { ClockEntryView(entry: $0, now: now) }
+                ForEach(config.entries) { ClockEntryView(entry: $0, now: now, orientation: .vertical) }
             }
         case .horizontal:
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .rowVAlignment, spacing: 16) {
                 dragHint
-                ForEach(config.entries) { ClockEntryView(entry: $0, now: now) }
+                ForEach(config.entries) { entry in
+                    ClockEntryView(entry: entry, now: now, orientation: .horizontal)
+                        .alignmentGuide(.rowVAlignment) { d in
+                            switch entry.rowAlignment {
+                            case .top:    return d[.top]
+                            case .center: return d[VerticalAlignment.center]
+                            case .bottom: return d[.bottom]
+                            default:      return d[.top]
+                            }
+                        }
+                }
             }
         }
     }
@@ -56,6 +73,7 @@ struct DesktopClockView: View {
 struct ClockEntryView: View {
     let entry: ClockEntry
     let now: Date
+    let orientation: WidgetOrientation
 
     private var color: Color { Color(hex: entry.textColor) ?? .white }
 
@@ -67,19 +85,34 @@ struct ClockEntryView: View {
     }
 
     var body: some View {
-        VStack(alignment: entry.rowAlignment.horizontal, spacing: 1) {
-            if !entry.label.isEmpty {
-                Text(entry.label)
-                    .font(.system(size: max(entry.fontSize * 0.38, 11), weight: .semibold, design: .monospaced))
-                    .foregroundColor(color.opacity(0.75))
-                    .shadow(color: entry.shadowEnabled ? .black.opacity(0.8) : .clear, radius: 2, x: 1, y: 1)
+        if orientation == .vertical {
+            VStack(alignment: entry.rowAlignment.horizontal, spacing: 1) {
+                labelView
+                timeView
             }
-            Text(formattedTime)
-                .font(.system(size: entry.fontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(color)
-                .shadow(color: entry.shadowEnabled ? .black.opacity(0.9) : .clear, radius: 3, x: 1, y: 1)
+            .frame(maxWidth: .infinity, alignment: entry.rowAlignment.frameAlignment)
+        } else {
+            VStack(alignment: .leading, spacing: 1) {
+                labelView
+                timeView
+            }
         }
-        .frame(maxWidth: .infinity, alignment: entry.rowAlignment.frameAlignment)
+    }
+
+    @ViewBuilder private var labelView: some View {
+        if !entry.label.isEmpty {
+            Text(entry.label)
+                .font(.system(size: max(entry.fontSize * 0.38, 11), weight: .semibold, design: .monospaced))
+                .foregroundColor(color.opacity(0.75))
+                .shadow(color: entry.shadowEnabled ? .black.opacity(0.8) : .clear, radius: 2, x: 1, y: 1)
+        }
+    }
+
+    private var timeView: some View {
+        Text(formattedTime)
+            .font(.system(size: entry.fontSize, weight: .bold, design: .monospaced))
+            .foregroundColor(color)
+            .shadow(color: entry.shadowEnabled ? .black.opacity(0.9) : .clear, radius: 3, x: 1, y: 1)
     }
 }
 

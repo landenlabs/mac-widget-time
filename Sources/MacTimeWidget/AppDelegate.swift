@@ -92,7 +92,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            win.title = "Time Widget Settings"
+            win.title = "Time Widget Settings - LanDen Labs (2026)"
             win.contentView = NSHostingView(rootView: view)
             win.center()
             let wc = NSWindowController(window: win)

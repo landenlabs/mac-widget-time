@@ -2,13 +2,18 @@ import Foundation
 import SwiftUI
 
 enum RowAlignment: String, Codable, CaseIterable {
-    case left, center, right
+    case left, center, right, top, bottom
+
+    static func choices(for orientation: WidgetOrientation) -> [RowAlignment] {
+        orientation == .vertical ? [.left, .center, .right] : [.top, .center, .bottom]
+    }
 
     var horizontal: HorizontalAlignment {
         switch self {
-        case .left:   return .leading
-        case .center: return .center
-        case .right:  return .trailing
+        case .left:          return .leading
+        case .center:        return .center
+        case .right:         return .trailing
+        case .top, .bottom:  return .center
         }
     }
 
@@ -17,16 +22,12 @@ enum RowAlignment: String, Codable, CaseIterable {
         case .left:   return .leading
         case .center: return .center
         case .right:  return .trailing
+        case .top:    return .top
+        case .bottom: return .bottom
         }
     }
 
-    var label: String {
-        switch self {
-        case .left:   return "Left"
-        case .center: return "Center"
-        case .right:  return "Right"
-        }
-    }
+    var label: String { rawValue.capitalized }
 }
 
 struct ClockEntry: Identifiable, Codable, Equatable {
