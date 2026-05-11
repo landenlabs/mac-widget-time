@@ -70,6 +70,7 @@ struct SettingsView: View {
                             .tag(Nav.entry(entry.id))
                         }
                         .onDelete { appState.removeEntries(from: widget.id, at: $0) }
+                        .onMove { appState.moveEntries(in: widget.id, from: $0, to: $1) }
                     }
                 }
             }

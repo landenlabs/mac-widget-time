@@ -114,6 +114,13 @@ class AppState: ObservableObject {
         widgets = updated
     }
 
+    func moveEntries(in widgetID: UUID, from source: IndexSet, to destination: Int) {
+        guard let idx = widgets.firstIndex(where: { $0.id == widgetID }) else { return }
+        var updated = widgets
+        updated[idx].entries.move(fromOffsets: source, toOffset: destination)
+        widgets = updated
+    }
+
     // MARK: - Position
 
     func updatePosition(for widgetID: UUID, x: Double, y: Double) {
