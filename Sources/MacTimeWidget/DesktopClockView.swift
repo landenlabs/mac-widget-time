@@ -7,11 +7,21 @@ private extension VerticalAlignment {
     static let rowVAlignment = VerticalAlignment(RowVAlignmentKey.self)
 }
 
+private struct StackSizeKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        let next = nextValue()
+        if next != .zero { value = next }
+    }
+}
+
 struct DesktopClockView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var windowManager: DesktopWindowManager
+    @ObservedObject var sunService: SunTimesService = .shared
     let widgetID: UUID
     @State private var now = Date()
+    @State private var stackSize: CGSize = .zero
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -20,7 +30,7 @@ struct DesktopClockView: View {
     var body: some View {
         Group {
             if let config {
-                entryStack(config: config)
+                contentWithBar(config: config)
                     .padding(12)
                     .overlay {
                         if windowManager.isDragging {
@@ -32,6 +42,56 @@ struct DesktopClockView: View {
             }
         }
         .onReceive(timer) { now = $0 }
+    }
+
+    @ViewBuilder
+    private func contentWithBar(config: WidgetConfig) -> some View {
+        let measuredStack = entryStack(config: config)
+            .background(
+                GeometryReader { g in
+                    Color.clear.preference(key: StackSizeKey.self, value: g.size)
+                }
+            )
+            .onPreferenceChange(StackSizeKey.self) { stackSize = $0 }
+
+        if config.dayBar.enabled, let source = config.dayBarSourceEntry {
+            let bar = dayBar(for: source, config: config)
+            switch (config.orientation, config.dayBar.alignment) {
+            case (.horizontal, .above):
+                VStack(spacing: 6) { bar; measuredStack }
+            case (.horizontal, .below), (.horizontal, _):
+                VStack(spacing: 6) { measuredStack; bar }
+            case (.vertical, .leading):
+                HStack(spacing: 6) { bar; measuredStack }
+            case (.vertical, .trailing), (.vertical, _):
+                HStack(spacing: 6) { measuredStack; bar }
+            }
+        } else {
+            measuredStack
+        }
+    }
+
+    @ViewBuilder
+    private func dayBar(for source: ClockEntry, config: WidgetConfig) -> some View {
+        let thickness = CGFloat(config.dayBar.thickness)
+        let horizontal = config.orientation == .horizontal
+        let length = horizontal ? max(40, stackSize.width) : max(40, stackSize.height)
+        let tz = source.timeZone
+        let sunTimes = resolveSunTimes(for: source)
+
+        DayBarView(
+            orientation: config.orientation,
+            length: length,
+            thickness: thickness,
+            sunriseFraction: sunTimes.map { dayFraction(for: $0.sunrise, in: tz) },
+            sunsetFraction:  sunTimes.map { dayFraction(for: $0.sunset,  in: tz) },
+            nowFraction: dayFraction(for: now, in: tz)
+        )
+    }
+
+    private func resolveSunTimes(for source: ClockEntry) -> SunTimesService.SunTimes? {
+        guard let lat = source.latitude, let lon = source.longitude else { return nil }
+        return sunService.times(latitude: lat, longitude: lon, on: now)
     }
 
     @ViewBuilder

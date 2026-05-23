@@ -39,10 +39,13 @@ struct ClockEntry: Identifiable, Codable, Equatable {
     var textColor: String
     var shadowEnabled: Bool
     var rowAlignment: RowAlignment
+    var latitude: Double?
+    var longitude: Double?
 
     init(label: String, timeZoneIdentifier: String, formatString: String,
          fontSize: Double = 32, textColor: String = "#FFFFFF", shadowEnabled: Bool = true,
-         rowAlignment: RowAlignment = .left) {
+         rowAlignment: RowAlignment = .left,
+         latitude: Double? = nil, longitude: Double? = nil) {
         self.id = UUID()
         self.label = label
         self.timeZoneIdentifier = timeZoneIdentifier
@@ -51,6 +54,8 @@ struct ClockEntry: Identifiable, Codable, Equatable {
         self.textColor = textColor
         self.shadowEnabled = shadowEnabled
         self.rowAlignment = rowAlignment
+        self.latitude = latitude
+        self.longitude = longitude
     }
 
     var timeZone: TimeZone {
@@ -59,7 +64,7 @@ struct ClockEntry: Identifiable, Codable, Equatable {
 
     // Custom decoder so old entries (without newer fields) still load.
     enum CodingKeys: String, CodingKey {
-        case id, label, timeZoneIdentifier, formatString, fontSize, textColor, shadowEnabled, rowAlignment
+        case id, label, timeZoneIdentifier, formatString, fontSize, textColor, shadowEnabled, rowAlignment, latitude, longitude
     }
 
     init(from decoder: Decoder) throws {
@@ -72,5 +77,7 @@ struct ClockEntry: Identifiable, Codable, Equatable {
         textColor          = try c.decodeIfPresent( String.self,       forKey: .textColor)          ?? "#FFFFFF"
         shadowEnabled      = try c.decodeIfPresent( Bool.self,         forKey: .shadowEnabled)      ?? true
         rowAlignment       = try c.decodeIfPresent( RowAlignment.self, forKey: .rowAlignment)       ?? .left
+        latitude           = try c.decodeIfPresent( Double.self,       forKey: .latitude)
+        longitude          = try c.decodeIfPresent( Double.self,       forKey: .longitude)
     }
 }

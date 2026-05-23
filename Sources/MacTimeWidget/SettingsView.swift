@@ -244,10 +244,78 @@ struct WidgetGeneralView: View {
                 Text("(0, 0) = screen bottom-left. Drag the blue block above to reposition.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                Divider()
+
+                dayBarSection
             }
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var dayBarSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Day Bar").font(.headline)
+
+            Toggle("Enable day bar", isOn: $widget.dayBar.enabled)
+
+            if widget.dayBar.enabled {
+                Form {
+                    LabeledContent("Location") {
+                        Picker("", selection: sourceEntryBinding) {
+                            Text("(first entry)").tag(UUID?.none)
+                            ForEach(widget.entries) { entry in
+                                Text(entry.label.isEmpty ? "(unnamed)" : entry.label)
+                                    .tag(UUID?.some(entry.id))
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: 220)
+                    }
+
+                    LabeledContent("Alignment") {
+                        Picker("", selection: $widget.dayBar.alignment) {
+                            ForEach(DayBarAlignment.choices(for: widget.orientation), id: \.self) {
+                                Text($0.label).tag($0)
+                            }
+                        }
+                        .pickerStyle(.radioGroup)
+                        .horizontalRadioGroupLayout()
+                        .labelsHidden()
+                    }
+
+                    LabeledContent("Thickness: \(Int(widget.dayBar.thickness)) pt") {
+                        Slider(value: $widget.dayBar.thickness, in: 6...40, step: 1)
+                            .frame(maxWidth: 200)
+                    }
+                }
+
+                if let source = widget.dayBarSourceEntry,
+                   (source.latitude == nil || source.longitude == nil) {
+                    Label(
+                        "Source entry \"\(source.label)\" has no coordinates. Use \"Find Time Zone\" in the entry editor to set them.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                }
+            }
+        }
+        .onChange(of: widget.orientation) { newOrientation in
+            // Reset alignment if the previous choice doesn't apply to the new orientation.
+            let valid = DayBarAlignment.choices(for: newOrientation)
+            if !valid.contains(widget.dayBar.alignment) {
+                widget.dayBar.alignment = DayBarAlignment.defaultFor(newOrientation)
+            }
+        }
+    }
+
+    private var sourceEntryBinding: Binding<UUID?> {
+        Binding(
+            get: { widget.dayBar.sourceEntryID },
+            set: { widget.dayBar.sourceEntryID = $0 }
+        )
     }
 
     private var posXBinding: Binding<Double> {
@@ -696,11 +764,15 @@ struct EntryEditView: View {
         CLGeocoder().geocodeAddressString(query) { placemarks, error in
             DispatchQueue.main.async {
                 isSearching = false
-                if let tz = placemarks?.first?.timeZone {
+                if let placemark = placemarks?.first, let tz = placemark.timeZone {
                     entry.timeZoneIdentifier = tz.identifier
                     geoStatus = .found(tz.identifier)
-                    if entry.label.isEmpty, let city = placemarks?.first?.locality {
+                    if entry.label.isEmpty, let city = placemark.locality {
                         entry.label = city
+                    }
+                    if let loc = placemark.location {
+                        entry.latitude  = loc.coordinate.latitude
+                        entry.longitude = loc.coordinate.longitude
                     }
                 } else if let e = error as? CLError, e.code == .geocodeFoundNoResult {
                     geoStatus = .notFound
