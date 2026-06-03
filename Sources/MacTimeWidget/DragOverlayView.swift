@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
 import AppKit
 
 /// Transparent NSView that captures mouse events for window dragging.

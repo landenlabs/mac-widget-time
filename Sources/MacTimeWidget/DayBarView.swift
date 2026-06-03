@@ -1,3 +1,4 @@
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
 import SwiftUI
 
 /// A thin 24-hour bar showing day vs night (from sunrise/sunset for some location),
