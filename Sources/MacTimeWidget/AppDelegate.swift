@@ -88,7 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.windowManagers.values.forEach { $0.updatePosition() }
             }
             let win = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 720, height: 540),
+                contentRect: NSRect(x: 0, y: 0, width: 720, height: 700),
                 styleMask: [.titled, .closable, .resizable, .miniaturizable],
                 backing: .buffered,
                 defer: false
