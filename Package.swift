@@ -3,12 +3,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "MacTimeWidget",
+    name: "MacWidgetTime",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "MacTimeWidget",
-            path: "Sources/MacTimeWidget",
+            name: "MacWidgetTime",
+            path: "Sources/MacWidgetTime",
             resources: [.process("Resources")]
         )
     ]

@@ -3,7 +3,7 @@
 #   tagAndRelease.bash -version v1.2.3 -message "commit message"
 #
 # What it does:
-#   1. Updates Sources/MacTimeWidget/Version.swift with the new version
+#   1. Updates Sources/MacWidgetTime/Version.swift with the new version
 #   2. Updates the top-level VERSION file with the new version
 #   3. Updates the version and date in README.md header table
 #   4. Commits all pending changes with the provided message
@@ -68,7 +68,7 @@ if git -C "$SCRIPT_DIR" ls-remote --tags origin | grep -q "refs/tags/$TAG$"; the
 fi
 
 # ---------- update Version.swift ----------
-VERSION_FILE="$SCRIPT_DIR/Sources/MacTimeWidget/Version.swift"
+VERSION_FILE="$SCRIPT_DIR/Sources/MacWidgetTime/Version.swift"
 cat > "$VERSION_FILE" << EOF
 // Updated by tagAndRelease.bash — do not edit by hand.
 let AppVersion = "$BARE"

@@ -24,7 +24,7 @@ final class SunTimesService: ObservableObject {
 
     private static var cacheFileURL: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacTimeWidget")
+        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacWidgetTime")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("sun_cache.json")
     }

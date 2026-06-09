@@ -506,7 +506,7 @@ struct AboutView: View {
 
     private var settingsPath: String {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacTimeWidget")
+        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacWidgetTime")
         return dir.appendingPathComponent("settings.json").path
     }
 

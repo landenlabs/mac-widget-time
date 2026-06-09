@@ -29,20 +29,20 @@ jobs:
       - name: Create universal binary
         run: |
           lipo -create \
-            .build/arm64-apple-macosx/release/MacTimeWidget \
-            .build/x86_64-apple-macosx/release/MacTimeWidget \
-            -output MacTimeWidget-universal
+            .build/arm64-apple-macosx/release/MacWidgetTime \
+            .build/x86_64-apple-macosx/release/MacWidgetTime \
+            -output MacWidgetTime-universal
 
       - name: Assemble app bundle
         run: |
-          APP=MacTimeWidget.app
+          APP=MacWidgetTime.app
           mkdir -p "$APP/Contents/MacOS"
           mkdir -p "$APP/Contents/Resources"
 
-          cp MacTimeWidget-universal "$APP/Contents/MacOS/MacTimeWidget"
+          cp MacWidgetTime-universal "$APP/Contents/MacOS/MacWidgetTime"
 
           # Copy SPM resource bundle if present (contains .gif and other assets)
-          BUNDLE=".build/arm64-apple-macosx/release/MacTimeWidget_MacTimeWidget.bundle"
+          BUNDLE=".build/arm64-apple-macosx/release/MacWidgetTime_MacWidgetTime.bundle"
           if [ -d "$BUNDLE" ]; then
             cp -r "$BUNDLE" "$APP/Contents/Resources/"
           fi
@@ -56,11 +56,11 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>CFBundleExecutable</key>
-            <string>MacTimeWidget</string>
+            <string>MacWidgetTime</string>
             <key>CFBundleIdentifier</key>
-            <string>com.landenlabs.mactimewidget</string>
+            <string>com.landenlabs.macwidgettime</string>
             <key>CFBundleName</key>
-            <string>MacTimeWidget</string>
+            <string>MacWidgetTime</string>
             <key>CFBundleDisplayName</key>
             <string>Mac Time Widget</string>
             <key>CFBundlePackageType</key>
@@ -80,14 +80,14 @@ jobs:
           EOF
 
       - name: Ad-hoc sign (allows local testing without Gatekeeper prompt on same machine)
-        run: codesign --force --deep --sign - MacTimeWidget.app
+        run: codesign --force --deep --sign - MacWidgetTime.app
 
       - name: Zip app bundle
-        run: ditto -c -k --sequesterRsrc --keepParent MacTimeWidget.app MacTimeWidget-${{ github.ref_name }}.zip
+        run: ditto -c -k --sequesterRsrc --keepParent MacWidgetTime.app MacWidgetTime-${{ github.ref_name }}.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: MacTimeWidget-${{ github.ref_name }}.zip
+          files: MacWidgetTime-${{ github.ref_name }}.zip
           generate_release_notes: true
           fail_on_unmatched_files: true

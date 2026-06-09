@@ -14,7 +14,7 @@
   </tr>
 </table>
 
-# MacTimeWidget
+# MacWidgetTime
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
@@ -89,7 +89,7 @@ swift build -c release
 
 The built binary is at:
 ```
-.build/release/MacTimeWidget
+.build/release/MacWidgetTime
 ```
 
 Run it directly or copy it to `/Applications` or any location in your `PATH`.
@@ -173,7 +173,7 @@ Shown when a clock entry is selected in the sidebar.
 
 Settings are saved automatically to:
 ```
-~/Library/Application Support/MacTimeWidget/settings.json
+~/Library/Application Support/MacWidgetTime/settings.json
 ```
 
 The **About** dialog shows the exact path and a **Show in Finder** button.
@@ -211,7 +211,7 @@ swift run
 
 ```
 mac-widget-time/
-├── Sources/MacTimeWidget/
+├── Sources/MacWidgetTime/
 │   ├── main.swift                  # Entry point
 │   ├── AppDelegate.swift           # Menu bar, window manager lifecycle
 │   ├── AppState.swift              # Observable state, JSON persistence
