@@ -95,6 +95,9 @@ func dayFraction(for date: Date, in tz: TimeZone) -> Double {
     var cal = Calendar(identifier: .gregorian)
     cal.timeZone = tz
     let comps = cal.dateComponents([.hour, .minute, .second], from: date)
-    let secs = Double((comps.hour ?? 0) * 3600 + (comps.minute ?? 0) * 60 + (comps.second ?? 0))
+    let h = comps.hour ?? 0
+    let m = comps.minute ?? 0
+    let s = comps.second ?? 0
+    let secs = Double(h * 3600 + m * 60 + s)
     return secs / 86400.0
 }
