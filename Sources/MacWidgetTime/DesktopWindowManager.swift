@@ -83,30 +83,31 @@ class DesktopWindowManager: NSObject, ObservableObject {
     private func placeWindow(_ win: NSWindow) {
         guard let config = appState.widgets.first(where: { $0.id == widgetID }) else { return }
         var x = config.positionX
-        var y = config.positionY
+        var y = config.positionY  // stored as TOP edge (frame.maxY)
 
         if x == 0 && y == 0 {
             guard let screen = NSScreen.main else { return }
             let widgetIndex = appState.widgets.firstIndex(where: { $0.id == widgetID }) ?? 0
             x = screen.visibleFrame.maxX - 374 - Double(widgetIndex) * 30
-            y = screen.visibleFrame.minY + 60 + Double(widgetIndex) * 30
+            y = screen.visibleFrame.maxY - 60 - Double(widgetIndex) * 30
             appState.updatePosition(for: widgetID, x: x, y: y)
         } else {
-            let savedOrigin = NSPoint(x: x, y: y)
-            let screen = NSScreen.screens.first(where: { $0.frame.contains(savedOrigin) }) ?? NSScreen.main
+            let savedPoint = NSPoint(x: x, y: y)
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(savedPoint) }) ?? NSScreen.main
             if let vf = screen?.visibleFrame {
                 x = max(vf.minX, x)
+                y = min(vf.maxY, y)
                 y = max(vf.minY, y)
             }
         }
 
-        win.setFrameOrigin(NSPoint(x: x, y: y))
+        win.setFrameTopLeftPoint(NSPoint(x: x, y: y))
     }
 
     func updatePosition() {
         guard let win = window,
               let config = appState.widgets.first(where: { $0.id == widgetID }) else { return }
-        win.setFrameOrigin(NSPoint(x: config.positionX, y: config.positionY))
+        win.setFrameTopLeftPoint(NSPoint(x: config.positionX, y: config.positionY))
     }
 
     // MARK: - Drag mode
@@ -127,7 +128,8 @@ class DesktopWindowManager: NSObject, ObservableObject {
         overlay.autoresizingMask = [.width, .height]
         overlay.onMove = { [weak self] origin in
             guard let self else { return }
-            self.appState.updatePosition(for: self.widgetID, x: origin.x, y: origin.y)
+            let topY = origin.y + (self.window?.frame.height ?? 0)
+            self.appState.updatePosition(for: self.widgetID, x: origin.x, y: topY)
         }
         win.contentView?.addSubview(overlay, positioned: .above, relativeTo: nil)
         dragOverlay = overlay
@@ -144,7 +146,7 @@ class DesktopWindowManager: NSObject, ObservableObject {
         win.ignoresMouseEvents = true
         win.level = desktopLevel
 
-        appState.updatePosition(for: widgetID, x: win.frame.origin.x, y: win.frame.origin.y)
+        appState.updatePosition(for: widgetID, x: win.frame.origin.x, y: win.frame.maxY)
     }
 }
 
