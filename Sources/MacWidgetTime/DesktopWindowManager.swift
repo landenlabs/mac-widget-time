@@ -35,6 +35,7 @@ class DesktopWindowManager: NSObject, ObservableObject {
         win.backgroundColor = .clear
         win.isOpaque = false
         win.hasShadow = false
+        win.isReleasedWhenClosed = false
         win.ignoresMouseEvents = true
         win.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         win.level = desktopLevel
@@ -47,7 +48,8 @@ class DesktopWindowManager: NSObject, ObservableObject {
         sizeObservation = controller.observe(\.preferredContentSize, options: [.new]) { [weak self, weak win] ctrl, _ in
             let size = ctrl.preferredContentSize
             guard size.width > 0, size.height > 0, let win = win else { return }
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self, weak win] in
+                guard let win = win else { return }
                 let leftEdge   = win.frame.minX
                 let bottomEdge = win.frame.minY
                 let screen = win.screen ?? NSScreen.main

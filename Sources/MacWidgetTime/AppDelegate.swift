@@ -47,7 +47,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for widget in widgets where windowManagers[widget.id] == nil {
             spawnWindowManager(for: widget.id)
         }
-        for id in windowManagers.keys where !activeIDs.contains(id) {
+        let idsToRemove = windowManagers.keys.filter { !activeIDs.contains($0) }
+        for id in idsToRemove {
             windowManagers[id]?.teardown()
             windowManagers.removeValue(forKey: id)
         }

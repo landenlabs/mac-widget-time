@@ -688,6 +688,16 @@ struct EntryEditView: View {
                         .labelsHidden()
                 }
 
+                LabeledContent("Leading Zero") {
+                    HStack(spacing: 16) {
+                        Toggle("Month", isOn: $entry.leadingZero.month)
+                        Toggle("Day",   isOn: $entry.leadingZero.day)
+                        Toggle("Hour",  isOn: $entry.leadingZero.hour)
+                        Toggle("Min",   isOn: $entry.leadingZero.minute)
+                    }
+                    .toggleStyle(.checkbox)
+                }
+
                 LabeledContent("Alignment") {
                     Picker("", selection: $entry.rowAlignment) {
                         ForEach(RowAlignment.choices(for: orientation), id: \.self) { alignment in
@@ -790,6 +800,7 @@ struct EntryEditView: View {
         let fmt = DateFormatter()
         fmt.dateFormat = entry.formatString
         fmt.timeZone = entry.timeZone
-        return fmt.string(from: Date())
+        let s = fmt.string(from: Date())
+        return entry.leadingZero.apply(to: s, formatString: entry.formatString, date: Date(), tz: entry.timeZone)
     }
 }

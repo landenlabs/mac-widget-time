@@ -33,6 +33,16 @@ struct DesktopClockView: View {
             if let config {
                 contentWithBar(config: config)
                     .padding(12)
+                    .overlay(alignment: .topLeading) {
+                        if windowManager.isDragging {
+                            Text("drag to reposition")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.8))
+                                .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
+                                .padding(.leading, 4)
+                                .padding(.top, 4)
+                        }
+                    }
                     .overlay {
                         if windowManager.isDragging {
                             RoundedRectangle(cornerRadius: 8)
@@ -100,12 +110,10 @@ struct DesktopClockView: View {
         switch config.orientation {
         case .vertical:
             VStack(alignment: .leading, spacing: 6) {
-                dragHint
                 ForEach(config.entries) { ClockEntryView(entry: $0, now: now, orientation: .vertical) }
             }
         case .horizontal:
             HStack(alignment: .rowVAlignment, spacing: 16) {
-                dragHint
                 ForEach(config.entries) { entry in
                     ClockEntryView(entry: entry, now: now, orientation: .horizontal)
                         .alignmentGuide(.rowVAlignment) { d in
@@ -118,15 +126,6 @@ struct DesktopClockView: View {
                         }
                 }
             }
-        }
-    }
-
-    @ViewBuilder private var dragHint: some View {
-        if windowManager.isDragging {
-            Text("drag to reposition")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.white.opacity(0.8))
-                .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
         }
     }
 }
@@ -142,7 +141,8 @@ struct ClockEntryView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = entry.formatString
         formatter.timeZone = entry.timeZone
-        return formatter.string(from: now)
+        let s = formatter.string(from: now)
+        return entry.leadingZero.apply(to: s, formatString: entry.formatString, date: now, tz: entry.timeZone)
     }
 
     var body: some View {
