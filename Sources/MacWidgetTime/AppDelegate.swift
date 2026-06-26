@@ -138,6 +138,9 @@ extension AppDelegate: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
+        menu.addItem(titleItem("Wid-Time"))
+        menu.addItem(.separator())
+
         let appState = AppState.shared
         for widget in appState.widgets {
             let isDragging = windowManagers[widget.id]?.isDragging ?? false
@@ -171,5 +174,30 @@ extension AppDelegate: NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+
+        menu.addItem(.separator())
+        menu.addItem(versionItem())
+    }
+
+    /// Bold, non-clickable title shown at the top of the menu.
+    private func titleItem(_ title: String) -> NSMenuItem {
+        let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        it.attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)])
+        it.isEnabled = false
+        return it
+    }
+
+    /// Small, light, non-clickable version label shown at the bottom of the menu.
+    private func versionItem() -> NSMenuItem {
+        let text = "v\(AppVersion)"
+        let it = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+        it.attributedTitle = NSAttributedString(
+            string: text,
+            attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+                         .foregroundColor: NSColor.secondaryLabelColor])
+        it.isEnabled = false
+        return it
     }
 }

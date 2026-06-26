@@ -50,13 +50,18 @@ class DesktopWindowManager: NSObject, ObservableObject {
             guard size.width > 0, size.height > 0, let win = win else { return }
             DispatchQueue.main.async { [weak self, weak win] in
                 guard let win = win else { return }
-                let leftEdge   = win.frame.minX
-                let bottomEdge = win.frame.minY
-                let screen = win.screen ?? NSScreen.main
-                let maxX = screen.map { $0.frame.maxX - size.width } ?? leftEdge
-                let x = min(leftEdge, maxX)
+                // Position is stored as the TOP edge, so keep the top-left corner
+                // anchored while the content size settles — growing/shrinking the
+                // window downward, never sliding the top edge.
+                let topEdge  = win.frame.maxY
+                let leftEdge = win.frame.minX
+                let screen   = win.screen ?? NSScreen.main
+                var x = leftEdge
+                if let vf = screen?.visibleFrame {
+                    x = min(max(x, vf.minX), vf.maxX - size.width)
+                }
                 win.setFrame(
-                    NSRect(x: x, y: bottomEdge, width: size.width, height: size.height),
+                    NSRect(x: x, y: topEdge - size.height, width: size.width, height: size.height),
                     display: true, animate: false
                 )
                 if let self {
@@ -82,26 +87,47 @@ class DesktopWindowManager: NSObject, ObservableObject {
 
     private func placeWindow(_ win: NSWindow) {
         guard let config = appState.widgets.first(where: { $0.id == widgetID }) else { return }
+        let size = win.frame.size
         var x = config.positionX
         var y = config.positionY  // stored as TOP edge (frame.maxY)
 
-        if x == 0 && y == 0 {
+        // No saved position for this set of displays → seed a sensible default
+        // anchored to the top-right of the main screen.
+        let hasSaved = config.screenPositions[ScreenFingerprint.current] != nil
+        if !hasSaved && x == 0 && y == 0 {
             guard let screen = NSScreen.main else { return }
             let widgetIndex = appState.widgets.firstIndex(where: { $0.id == widgetID }) ?? 0
-            x = screen.visibleFrame.maxX - 374 - Double(widgetIndex) * 30
-            y = screen.visibleFrame.maxY - 60 - Double(widgetIndex) * 30
+            x = screen.visibleFrame.maxX - size.width - 20 - Double(widgetIndex) * 30
+            y = screen.visibleFrame.maxY - Double(widgetIndex) * 30
             appState.updatePosition(for: widgetID, x: x, y: y)
         } else {
-            let savedPoint = NSPoint(x: x, y: y)
-            let screen = NSScreen.screens.first(where: { $0.frame.contains(savedPoint) }) ?? NSScreen.main
+            // Clamp the saved top-left so the widget stays fully on whichever
+            // connected screen best contains it (max overlap, not a single
+            // corner — maxY is exclusive in CGRect.contains).
+            let widgetRect = NSRect(x: x, y: y - size.height, width: size.width, height: size.height)
+            let screen = bestScreen(for: widgetRect) ?? NSScreen.main
             if let vf = screen?.visibleFrame {
-                x = max(vf.minX, x)
-                y = min(vf.maxY, y)
-                y = max(vf.minY, y)
+                x = min(max(x, vf.minX), vf.maxX - size.width)
+                y = min(max(y, vf.minY + size.height), vf.maxY)
             }
         }
 
         win.setFrameTopLeftPoint(NSPoint(x: x, y: y))
+    }
+
+    /// The connected screen whose frame overlaps `rect` the most, or nil if
+    /// the rect lies entirely off every screen.
+    private func bestScreen(for rect: NSRect) -> NSScreen? {
+        NSScreen.screens
+            .map { (screen: $0, overlap: overlapArea($0.frame, rect)) }
+            .filter { $0.overlap > 0 }
+            .max { $0.overlap < $1.overlap }?
+            .screen
+    }
+
+    private func overlapArea(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let r = a.intersection(b)
+        return r.isNull ? 0 : r.width * r.height
     }
 
     func updatePosition() {

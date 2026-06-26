@@ -520,36 +520,69 @@ struct AboutView: View {
 
 // MARK: - Screen mini-map
 
+/// Mini-map of the entire desktop (the bounding union of every connected
+/// display). Each screen is drawn to scale so the widget can be dragged or
+/// clicked onto any monitor. `widgetX` is the left edge and `widgetY` is the
+/// TOP edge in global (bottom-left origin) coordinates — matching how the
+/// window manager stores and restores the position.
 struct ScreenMapView: View {
     @Binding var widgetX: Double
     @Binding var widgetY: Double
     var widgetSize: CGSize
     var onChanged: () -> Void
 
-    private let mapSize = CGSize(width: 360, height: 202)
+    private let maxMap = CGSize(width: 360, height: 202)
 
-    private var screen: CGRect {
-        guard let f = NSScreen.main?.frame else { return CGRect(x: 0, y: 0, width: 2560, height: 1440) }
-        return CGRect(x: f.minX, y: f.minY, width: f.width, height: f.height)
+    private var screenFrames: [CGRect] {
+        let frames = NSScreen.screens.map { $0.frame }
+        return frames.isEmpty ? [CGRect(x: 0, y: 0, width: 2560, height: 1440)] : frames
     }
-    private var sx: Double { mapSize.width  / screen.width  }
-    private var sy: Double { mapSize.height / screen.height }
+
+    /// Bounding box of all displays in global coordinates.
+    private var desktop: CGRect {
+        screenFrames.dropFirst().reduce(screenFrames[0]) { $0.union($1) }
+    }
+
+    private var scale: Double {
+        min(maxMap.width / desktop.width, maxMap.height / desktop.height)
+    }
+    private var mapSize: CGSize {
+        CGSize(width: desktop.width * scale, height: desktop.height * scale)
+    }
+
+    /// global frame → map rect (top-left origin within the mini-map)
+    private func mapRect(_ f: CGRect) -> CGRect {
+        CGRect(
+            x: (f.minX - desktop.minX) * scale,
+            y: (desktop.maxY - f.maxY) * scale,
+            width:  f.width  * scale,
+            height: f.height * scale
+        )
+    }
 
     private var widgetMapRect: CGRect {
-        let mx    = (widgetX - screen.minX) * sx
-        let myTop = mapSize.height - (widgetY - screen.minY + widgetSize.height) * sy
-        return CGRect(
-            x: mx, y: myTop,
-            width:  max(10, widgetSize.width  * sx),
-            height: max(5,  widgetSize.height * sy)
-        )
+        // widgetY is the TOP edge, so the widget's global frame spans
+        // [widgetY - height, widgetY].
+        let global = CGRect(x: widgetX, y: widgetY - widgetSize.height,
+                            width: widgetSize.width, height: widgetSize.height)
+        let r = mapRect(global)
+        return CGRect(x: r.minX, y: r.minY,
+                      width: max(10, r.width), height: max(5, r.height))
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.55))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.15), lineWidth: 1))
+            Color.clear
+
+            // One block per physical display.
+            ForEach(Array(screenFrames.enumerated()), id: \.offset) { _, f in
+                let r = mapRect(f)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.black.opacity(0.55))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.18), lineWidth: 1))
+                    .frame(width: r.width, height: r.height)
+                    .offset(x: r.minX, y: r.minY)
+            }
 
             RoundedRectangle(cornerRadius: 3)
                 .fill(Color.accentColor.opacity(0.85))
@@ -562,14 +595,15 @@ struct ScreenMapView: View {
         .gesture(
             DragGesture(minimumDistance: 0, coordinateSpace: .named("screenMap"))
                 .onChanged { value in
-                    let nx = value.location.x / sx + screen.minX
-                    let ny = (mapSize.height - value.location.y) / sy + screen.minY
-                    widgetX = max(screen.minX, min(nx, screen.maxX - widgetSize.width))
-                    widgetY = max(screen.minY, min(ny, screen.maxY - widgetSize.height))
+                    // Anchor the widget's top-left corner under the cursor.
+                    let gx = value.location.x / scale + desktop.minX
+                    let gyTop = desktop.maxY - value.location.y / scale
+                    widgetX = max(desktop.minX, min(gx, desktop.maxX - widgetSize.width))
+                    widgetY = max(desktop.minY + widgetSize.height, min(gyTop, desktop.maxY))
                     onChanged()
                 }
         )
-        .help("Click or drag to reposition the widget")
+        .help("Click or drag to reposition the widget on any display")
     }
 }
 

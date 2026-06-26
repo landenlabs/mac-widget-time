@@ -114,15 +114,17 @@ struct WidgetConfig: Identifiable, Codable, Equatable {
     }
 }
 
+/// Identifies the current set of physically-connected displays so each
+/// arrangement (laptop only, laptop + 1 external, 2 externals, …) can
+/// remember its own widget position. Keyed on display IDs rather than
+/// frames so simply moving a window never changes the fingerprint.
 enum ScreenFingerprint {
     static var current: String {
-        NSScreen.screens
-            .sorted { lhs, rhs in
-                lhs.frame.minX != rhs.frame.minX
-                    ? lhs.frame.minX < rhs.frame.minX
-                    : lhs.frame.minY < rhs.frame.minY
-            }
-            .map { "\(Int($0.frame.width))x\(Int($0.frame.height))@\(Int($0.frame.minX)),\(Int($0.frame.minY))" }
-            .joined(separator: "|")
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let ids = NSScreen.screens
+            .compactMap { $0.deviceDescription[key] as? NSNumber }
+            .map { $0.uint32Value }
+            .sorted()
+        return ids.isEmpty ? "none" : ids.map(String.init).joined(separator: "|")
     }
 }
