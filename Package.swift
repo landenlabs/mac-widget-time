@@ -9,7 +9,10 @@ let package = Package(
         .executableTarget(
             name: "MacWidgetTime",
             path: "Sources/MacWidgetTime",
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            linkerSettings: [
+                .linkedFramework("ServiceManagement"),
+            ]
         )
     ]
 )

@@ -65,7 +65,7 @@ A lightweight, transparent **World Clock desktop widget** for macOS. Displays li
 - **Font size control** — 12–96pt slider per clock entry
 - **Text shadow** — optional drop shadow for legibility on any wallpaper
 - **Alignment** — left, center, or right align each clock entry independently
-- **Launch at Login** — optional macOS login item via System Events
+- **Launch at Login** — optional macOS login item via `SMAppService`
 - **Animated About dialog** — animated logo plays once on open
 
 ---
@@ -84,15 +84,12 @@ A lightweight, transparent **World Clock desktop widget** for macOS. Displays li
 ```bash
 git clone https://github.com/landenlabs/mac-widget-time.git
 cd mac-widget-time
-swift build -c release
+./build_app.sh
 ```
 
-The built binary is at:
-```
-.build/release/MacWidgetTime
-```
+This builds a release binary, packages it as `MacWidgetTime.app`, and installs it to `/Applications`. A proper `.app` bundle is required for **Launch at Login** to work — macOS can only silently relaunch bundled apps at login, not bare executables.
 
-Run it directly or copy it to `/Applications` or any location in your `PATH`.
+To build without installing, run `swift build -c release` directly; the binary will be at `.build/release/MacWidgetTime`, but it won't support Launch at Login.
 
 ---
 
