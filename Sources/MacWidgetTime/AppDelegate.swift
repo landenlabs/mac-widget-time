@@ -29,6 +29,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         setupStatusItem()
+
+        LoginItem.syncWithStoredPreference()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -113,22 +115,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleLaunchAtLogin() {
-        launchAtLoginEnabled.toggle()
-        setLoginItem(enabled: launchAtLoginEnabled)
-    }
-
-    private var launchAtLoginEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "launchAtLogin") }
-        set { UserDefaults.standard.set(newValue, forKey: "launchAtLogin") }
-    }
-
-    private func setLoginItem(enabled: Bool) {
-        let path = Bundle.main.bundlePath
-        let script = enabled
-            ? "tell application \"System Events\" to make login item at end with properties {path:\"\(path)\", hidden:false}"
-            : "tell application \"System Events\" to delete (every login item whose path is \"\(path)\")"
-        var err: NSDictionary?
-        NSAppleScript(source: script)?.executeAndReturnError(&err)
+        LoginItem.set(enabled: !LoginItem.isEnabled)
     }
 }
 
@@ -169,7 +156,7 @@ extension AppDelegate: NSMenuDelegate {
         menu.addItem(.separator())
 
         let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        loginItem.state = launchAtLoginEnabled ? .on : .off
+        loginItem.state = LoginItem.isEnabled ? .on : .off
         menu.addItem(loginItem)
 
         menu.addItem(.separator())
