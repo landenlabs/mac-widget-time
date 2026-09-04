@@ -442,7 +442,7 @@ struct AboutView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Mac Time Widget - LanDen Labs (2026)")
                             .font(.title.bold())
-                        Text("Version \(appVersion)")
+                        Text("Version \(displayVersion)")
                             .foregroundColor(.secondary)
                     }
                 }
@@ -488,8 +488,8 @@ struct AboutView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var appVersion: String {
-        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? AppVersion
+    private var displayVersion: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? appVersion
         if let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String { return "\(v) (\(b))" }
         return v
     }
