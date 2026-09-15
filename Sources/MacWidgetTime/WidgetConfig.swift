@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LanDen Labs - Dennis Lang
 import Foundation
 import AppKit
+import CoreGraphics
 
 enum WidgetOrientation: String, Codable, CaseIterable {
     case vertical, horizontal
@@ -116,15 +117,29 @@ struct WidgetConfig: Identifiable, Codable, Equatable {
 
 /// Identifies the current set of physically-connected displays so each
 /// arrangement (laptop only, laptop + 1 external, 2 externals, …) can
-/// remember its own widget position. Keyed on display IDs rather than
-/// frames so simply moving a window never changes the fingerprint.
+/// remember its own widget position. Keyed on each display's persistent
+/// EDID identity rather than its CGDirectDisplayID: macOS's WindowServer
+/// is free to reassign display IDs to the same physical monitor across a
+/// reconnect, dock/hub switch, or sleep/wake cycle, which would otherwise
+/// make a saved arrangement silently stop matching.
 enum ScreenFingerprint {
     static var current: String {
         let key = NSDeviceDescriptionKey("NSScreenNumber")
         let ids = NSScreen.screens
             .compactMap { $0.deviceDescription[key] as? NSNumber }
             .map { $0.uint32Value }
-            .sorted()
-        return ids.isEmpty ? "none" : ids.map(String.init).joined(separator: "|")
+        let identities = ids.map(identity(for:)).sorted()
+        return identities.isEmpty ? "none" : identities.joined(separator: "|")
+    }
+
+    private static func identity(for screenNumber: UInt32) -> String {
+        let displayID = CGDirectDisplayID(screenNumber)
+        if CGDisplayIsBuiltin(displayID) != 0 {
+            return "builtin"
+        }
+        let vendor = CGDisplayVendorNumber(displayID)
+        let model  = CGDisplayModelNumber(displayID)
+        let serial = CGDisplaySerialNumber(displayID)
+        return "\(vendor)-\(model)-\(serial)"
     }
 }
