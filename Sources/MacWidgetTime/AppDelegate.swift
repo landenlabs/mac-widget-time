@@ -155,6 +155,10 @@ extension AppDelegate: NSMenuDelegate {
 
         let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         loginItem.state = LoginItem.isEnabled ? .on : .off
+        if !LoginItem.isRunningFromAppBundle {
+            loginItem.toolTip = "Only available when running the installed app from /Applications."
+            loginItem.isEnabled = false
+        }
         menu.addItem(loginItem)
 
         menu.addItem(.separator())

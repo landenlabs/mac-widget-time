@@ -21,9 +21,13 @@ class AppState: ObservableObject {
         var widgetY: Double
     }
 
+    // Hardcoded rather than Bundle.main.bundleIdentifier: a bare SwiftPM
+    // binary (run.sh) has no Info.plist and reports a nil identifier, while
+    // the installed .app bundle reports "com.landenlabs.macwidgettime" — the
+    // two launch paths would otherwise read/write different settings files.
     private static var fileURL: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MacWidgetTime")
+        let dir = support.appendingPathComponent("MacWidgetTime")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("settings.json")
     }
